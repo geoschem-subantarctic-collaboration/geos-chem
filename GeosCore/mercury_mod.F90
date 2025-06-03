@@ -2583,6 +2583,25 @@ CONTAINS
        ! Save loss frequency to an array
        ! If not over water, LOSS_FREQ is already set to zero
        Hg2_SEASALT_LOSSRATE(I,J) = LOSS_FREQ
+       
+       ! ------- Perturbation experiments, modify the loss rate in the sub-Antarctic
+       ! ------- region
+
+       ! YMid contains Lat centers [degrees]
+       IF ( State_Grid%YMid(I,J) >= -60.0 .and.  State_Grid%YMid(I,J) <= -50.0) THEN
+#ifdef PERTURB_SSA_LOSSRATE_CONSTANT
+            ! This is an average value calculated at latitude 54S, longitude
+            ! (lon < -80) | (lon > -40)
+            ! which excludes the part of the Southern Ocean with South America
+            ! calculated over the five years 2018-2022
+            Hg2_SEASALT_LOSSRATE(I,J) = 0.00011
+#endif
+#ifdef PERTURB_SSA_LOSSRATE_ZERO
+            Hg2_SEASALT_LOSSRATE(I,J) = 0.0
+#endif
+      ENDIF   
+      ! ------- Perturbation experiments (end)
+      
     ENDDO
     ENDDO
     !$OMP END PARALLEL DO
