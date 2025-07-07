@@ -2559,6 +2559,15 @@ CONTAINS
           ! Don't allow wind >20 m/s (limit of this parameterization)
           SFCWINDSQR = State_Met%U10M(I,J)**2 + State_Met%V10M(I,J)**2
           U10M       = SQRT( SFCWINDSQR )
+          ! Perturbation experiments, more wind/less wind
+          IF ( State_Grid%YMid(I,J) >= -60.0 .and.  State_Grid%YMid(I,J) <= -50.0) THEN
+#ifdef PERTURB_MORE_WIND
+                      U10M = U10M * 1.25
+#endif
+#ifdef PERTURB_LESS_WIND
+                      U10M = U10M * 0.75
+#endif
+          ENDIF
           U10M       = MAX( MIN( U10M, 20.0_fp ), 1.0_fp )
 
           ! Relative humidity as a saturation ratio
@@ -3465,6 +3474,16 @@ CONTAINS
 
           ! Square of surface (actually 10m) wind speed [m2/s2]
           Usq    = State_Met%U10M(I,J)**2 + State_Met%V10M(I,J)**2
+          ! Perturbation experiments, more wind/less wind
+          IF ( State_Grid%YMid(I,J) >= -60.0 .and.  State_Grid%YMid(I,J) <= -50.0) THEN
+#ifdef PERTURB_MORE_WIND
+            Usq = Usq * 1.25**2
+#endif
+#ifdef PERTURB_LESS_WIND
+            Usq = Usq * 0.75**2
+#endif
+          ENDIF
+
 
           !------------------------------------------------------
           ! Parameterizations for calculating water side mass trasfer
@@ -3483,6 +3502,17 @@ CONTAINS
           ! Concentration of Hg(0) in the ocean [ng/L]
           ! now converting from Hg0aq in mol/m3 to ng/L
           CHg0aq = Hg0aq(I,J) * 200.59_fp * 1.0e9_fp / 1.0e3_fp
+
+          ! Perturbation experiments, more/less ocean Hg
+          IF ( State_Grid%YMid(I,J) >= -60.0 .and.  State_Grid%YMid(I,J) <= -50.0) THEN
+#ifdef PERTURB_MORE_OCEAN_MERCURY
+              CHg0aq = CHg0aq * 1.25
+#endif
+#ifdef PERTURB_LESS_OCEAN_MERCURY
+              CHg0aq = CHg0aq * 0.75
+#endif
+          ENDIF
+
 
           ! Gas phase Hg(0) concentration: convert [kg] -> [ng/L]
           MHg0_air = State_Chm%Species(N)%Conc(I,J,1)

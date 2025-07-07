@@ -89,7 +89,7 @@ MODULE DRYDEP_MOD
 !  (14) Wesely, M. L., Parameterization of surface resistance to gaseous dry
 !        deposition in regional-scale numerical models.  Atmos. Environ., 23
 !        1293-1304, 1989.
-!  (15) Price, H., L. Jaeglé, A. Rice, P. Quay, P.C. Novelli, R. Gammon,
+!  (15) Price, H., L. JaeglÃ©, A. Rice, P. Quay, P.C. Novelli, R. Gammon,
 !        Global Budget of Molecular Hydrogen and its Deuterium Content:
 !        Constraints from Ground Station, Cruise, and Aircraft Observations,
 !        submitted to J. Geophys. Res., 2007.
@@ -313,6 +313,8 @@ CONTAINS
     ! Initialize
     ErrMsg   = ''
     ThisLoc  = ' -> at Do_DryDep  (in module GeosCore/drydep_mod.F90)'
+
+
 
     ! Call METERO to obtain meteorological fields (all 1-D arrays)
     ! Added sfc pressure as PRESSU and 10m windspeed as W10
@@ -950,9 +952,9 @@ CONTAINS
   SUBROUTINE DEPVEL( Input_Opt, State_Chm, State_Diag, State_Grid, &
                      State_Met, RADIAT,    TEMP,       SUNCOS,     &
                      F0,        HSTAR,     XMW,        AEROSOL,    &
-                     USTAR,     CZ1,       OBK,        CFRAC,      &
+                     USTAR_ARG, CZ1,       OBK,        CFRAC,      &
                      ZH,        ZO,        RHB,        PRESSU,     &
-                     W10,       RC                                )
+                     W10_ARG,   RC                                )
 !
 ! !USES:
 !
@@ -991,14 +993,14 @@ CONTAINS
                                                  !  of biological substances
     REAL(f8), INTENT(IN) :: HSTAR  (NUMDEP)      ! Henry's law constant
     REAL(f8), INTENT(IN) :: XMW    (NUMDEP)      ! Molecular weight [kg/mol]
-    REAL(f8), INTENT(IN) :: USTAR  (State_Grid%NX,State_Grid%NY) ! Friction velocity [m/s]
+    REAL(f8), INTENT(IN) :: USTAR_ARG  (State_Grid%NX,State_Grid%NY) ! Friction velocity [m/s]
     REAL(f8), INTENT(IN) :: CZ1    (State_Grid%NX,State_Grid%NY) ! Alt @ which Vd is compute [m]
     REAL(f8), INTENT(IN) :: OBK    (State_Grid%NX,State_Grid%NY) ! Monin-Obhukov length [m]
     REAL(f8), INTENT(IN) :: CFRAC  (State_Grid%NX,State_Grid%NY) ! Surface cloud fraction
     REAL(f8), INTENT(IN) :: ZH     (State_Grid%NX,State_Grid%NY) ! Roughness height [m]
     REAL(f8), INTENT(IN) :: RHB    (State_Grid%NX,State_Grid%NY) ! Relative humidity [%]
     REAL(f8), INTENT(IN) :: PRESSU (State_Grid%NX,State_Grid%NY) ! Surface pressure [hPa]
-    REAL(f8), INTENT(IN) :: W10    (State_Grid%NX,State_Grid%NY) ! Wind speed @ 10m altitude [m/s]
+    REAL(f8), INTENT(IN) :: W10_ARG    (State_Grid%NX,State_Grid%NY) ! Wind speed @ 10m altitude [m/s]
 !
 ! !INPUT/OUTPUT PARAMETERS:
 !
@@ -1115,6 +1117,9 @@ CONTAINS
     REAL(f8) :: RSURFC(NUMDEP,NTYPE)
     REAL(f8) :: C1X(NUMDEP),VD(NUMDEP),VK(NUMDEP)
     REAL(f8) :: ZO(State_Grid%NX,State_Grid%NY)
+    ! local versions of USTAR and W10 to support pertubation
+    REAL(f8) :: USTAR(State_Grid%NX,State_Grid%NY)
+    REAL(f8) :: W10(State_Grid%NX,State_Grid%NY)
 
     LOGICAL  :: LDEP(NUMDEP)
     LOGICAL  :: LRGERA(State_Grid%NX,State_Grid%NY)
@@ -1193,6 +1198,28 @@ CONTAINS
     !=================================================================
     ! DEPVEL begins here!
     !=================================================================
+    ! Perturbation experiments, more wind/less wind
+    ! - Applies to all species
+    ! - Same ratio applies to ustar because ustar is linearly related
+    !   to u10m if stability is held fixed, ie.
+    !    ustar = u10m * (some factor which depends on stability)
+    USTAR = USTAR_ARG
+    W10 = W10_ARG
+    DO J = 1, State_Grid%NY
+    DO I = 1, State_Grid%NX
+  
+        IF ( State_Grid%YMid(I,J) >= -60.0 .and.  State_Grid%YMid(I,J) <= -50.0) THEN
+#ifdef PERTURB_MORE_WIND
+                W10(I,J) = W10(I,J) * 1.25
+                USTAR(I,J) = USTAR(I,J) * 1.25
+#endif
+#ifdef PERTURB_LESS_WIND
+                W10(I,J) = W10(I,J) * 0.75
+                USTAR(I,J) = USTAR(I,J) * 0.75
+#endif
+        ENDIF
+    ENDDO
+    ENDDO
 
     ! Assume success
     RC      =  GC_SUCCESS
