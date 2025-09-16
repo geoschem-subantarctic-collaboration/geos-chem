@@ -240,6 +240,10 @@ MODULE State_Chm_Mod
      REAL(fp),          POINTER :: DryDepFreq (:,:,:  ) ! Drydep freq [s-1]
      REAL(f8),          POINTER :: DryDepVel  (:,:,:  ) ! Dry deposition velocities
                                                         ! [m/s] - use REAL8 in drydep
+     REAL(fp),          POINTER :: DryDepFreqIsland (:,:,:  ) ! Drydep freq [s-1], but to sub-grid island
+     REAL(f8),          POINTER :: DryDepVelIsland  (:,:,:  ) ! Dry deposition velocities, but to sub-grid island
+                                                        ! [m/s] - use REAL8 in drydep
+
 #if defined( MODEL_GEOS )
      REAL(fp),          POINTER :: DryDepRa2m (:,:    ) ! 2m  aerodynamic resistance
      REAL(fp),          POINTER :: DryDepRa10m(:,:    ) ! 10m aerodynamic resistance
@@ -567,6 +571,8 @@ CONTAINS
     State_Chm%Salinity          => NULL()
     State_Chm%DryDepFreq        => NULL()
     State_Chm%DryDepVel         => NULL()
+    State_Chm%DryDepFreqIsland  => NULL()
+    State_Chm%DryDepVelIsland   => NULL()
 #ifdef MODEL_GEOS
     State_Chm%DryDepRa2m        => NULL()
     State_Chm%DryDepRa10m       => NULL()
@@ -2103,6 +2109,47 @@ CONTAINS
        RETURN
     ENDIF
 
+    !------------------------------------------------------------------------
+    ! DryDepFreqIsland
+    !------------------------------------------------------------------------
+    IF ( State_Chm%nDryDep > 0 ) THEN
+      chmId = 'DryDepFreqIsland'
+      CALL Init_and_Register(                                              &
+          Input_Opt  = Input_Opt,                                          &
+          State_Chm  = State_Chm,                                          &
+          State_Grid = State_Grid,                                         &
+          chmId      = chmId,                                              &
+          Ptr2Data   = State_Chm%DryDepFreqIsland,                         &
+          nSlots     = State_Chm%nDryDep,                                  &
+          RC         = RC                                                 )
+
+     IF ( RC /= GC_SUCCESS ) THEN
+        errMsg = TRIM( errMsg_ir ) // TRIM( chmId )
+        CALL GC_Error( errMsg, RC, thisLoc )
+        RETURN
+     ENDIF
+  ENDIF
+
+  !------------------------------------------------------------------
+  ! DryDepVelIsland
+  !------------------------------------------------------------------
+  chmID = 'DryDepVelIsland'
+  CALL Init_and_Register(                                                  &
+       Input_Opt  = Input_Opt,                                             &
+       State_Chm  = State_Chm,                                             &
+       State_Grid = State_Grid,                                            &
+       chmId      = chmId,                                                 &
+       Ptr2Data   = State_Chm%DryDepVelIsland,                             &
+       nSlots     = State_Chm%nDryDep,                                     &
+       RC         = RC                                                    )
+
+  IF ( RC /= GC_SUCCESS ) THEN
+     errMsg = TRIM( errMsg_ir ) // TRIM( chmId )
+     CALL GC_Error( errMsg, RC, thisLoc )
+     RETURN
+  ENDIF
+
+
 #ifdef MODEL_GEOS
     !========================================================================
     ! Allocate and initialize aerodynamic resistance fields (GEOS-5 only)
@@ -3574,6 +3621,20 @@ CONTAINS
        State_Chm%DryDepFreq => NULL()
     ENDIF
 
+    IF ( ASSOCIATED( State_Chm%DryDepVelIsland ) ) THEN
+      DEALLOCATE( State_Chm%DryDepVelIsland, STAT=RC )
+      CALL GC_CheckVar( 'State_Chm%DryDepVelIsland', 2, RC )
+      IF ( RC /= GC_SUCCESS ) RETURN
+      State_Chm%DryDepVelIsland => NULL()
+   ENDIF
+
+   IF ( ASSOCIATED( State_Chm%DryDepFreqIsland ) ) THEN
+      DEALLOCATE( State_Chm%DryDepFreqIsland, STAT=RC )
+      CALL GC_CheckVar( 'State_Chm%DryDepFreqIsland', 2, RC )
+      IF ( RC /= GC_SUCCESS ) RETURN
+      State_Chm%DryDepFreqIsland => NULL()
+   ENDIF
+
     IF ( ASSOCIATED( State_Chm%Iodide ) ) THEN
        DEALLOCATE( State_Chm%Iodide, STAT=RC )
        CALL GC_CheckVar( 'State_Chm%Iodide', 2, RC )
@@ -4771,6 +4832,19 @@ CONTAINS
           IF ( isSpc   ) perSpc = 'DRY'
 
        CASE( 'DRYDEPVEL' )
+          IF ( isDesc    ) Desc   = 'Dry deposition velocities, subgrid island'
+          IF ( isUnits   ) Units  = 'm s-1'
+          IF ( isRank    ) Rank   = 2
+          IF ( isSpc     ) perSpc = 'DRY'
+          IF ( isType    ) type   = KINDVAL_F8
+
+        CASE( 'DRYDEPFREQISLAND' )
+          IF ( isDesc  ) Desc   = 'Dry deposition frequencies, subgrid island'
+          IF ( isUnits ) Units  = 's-1'
+          IF ( isRank  ) Rank   = 2
+          IF ( isSpc   ) perSpc = 'DRY'
+
+        CASE( 'DRYDEPVELISLAND' )
           IF ( isDesc    ) Desc   = 'Dry deposition velocities'
           IF ( isUnits   ) Units  = 'm s-1'
           IF ( isRank    ) Rank   = 2

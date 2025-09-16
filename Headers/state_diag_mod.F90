@@ -260,6 +260,14 @@ MODULE State_Diag_Mod
      TYPE(DgnMap),       POINTER :: Map_DryDep
      LOGICAL                     :: Archive_DryDep
 
+     REAL(f4),           POINTER :: DryDepIsland(:,:,:)
+     TYPE(DgnMap),       POINTER :: Map_DryDepIsland
+     LOGICAL                     :: Archive_DryDepIsland
+
+     REAL(f4),           POINTER :: DryDepVelIsland(:,:,:)
+     TYPE(DgnMap),       POINTER :: Map_DryDepVelIsland
+     LOGICAL                     :: Archive_DryDepVelIsland
+
      REAL(f4),           POINTER :: DryDepVel(:,:,:)
      TYPE(DgnMap),       POINTER :: Map_DryDepVel
      LOGICAL                     :: Archive_DryDepVel
@@ -1711,6 +1719,14 @@ CONTAINS
     State_Diag%DryDep                              => NULL()
     State_Diag%Map_DryDep                          => NULL()
     State_Diag%Archive_DryDep                      = .FALSE.
+
+    State_Diag%DryDepIsland                        => NULL()
+    State_Diag%Map_DryDepIsland                    => NULL()
+    State_Diag%Archive_DryDepIsland                = .FALSE.
+
+    State_Diag%DryDepVelIsland                     => NULL()
+    State_Diag%Map_DryDepVelIsland                 => NULL()
+    State_Diag%Archive_DryDepVelIsland             = .FALSE.
 
     State_Diag%DryDepVel                           => NULL()
     State_Diag%Map_DryDepVel                       => NULL()
@@ -3777,6 +3793,59 @@ CONTAINS
        CALL GC_Error( errMsg, RC, thisLoc )
        RETURN
     ENDIF
+
+    !------------------------------------------------------------------------
+    ! Total dry deposition flux to a hypothetical tiny, grass/shrub-covered,
+    ! island (i.e. a small sub-Antarctic island, similar to Macquarie Is)
+    !------------------------------------------------------------------------
+    diagID  = 'DryDepIsland'
+    CALL Init_and_Register(                                                  &
+         Input_Opt      = Input_Opt,                                         &
+         State_Chm      = State_Chm,                                         &
+         State_Diag     = State_Diag,                                        &
+         State_Grid     = State_Grid,                                        &
+         DiagList       = Diag_List,                                         &
+         TaggedDiagList = TaggedDiag_List,                                   &
+         Ptr2Data       = State_Diag%DryDepIsland,                                 &
+         archiveData    = State_Diag%Archive_DryDepIsland,                         &
+         mapData        = State_Diag%Map_DryDepIsland,                             &
+         diagId         = diagId,                                            &
+         diagFlag       = 'D',                                               &
+         RC             = RC                                                )
+
+    IF ( RC /= GC_SUCCESS ) THEN
+       errMsg = TRIM( errMsg_ir ) // TRIM( diagId )
+       CALL GC_Error( errMsg, RC, thisLoc )
+       RETURN
+    ENDIF
+
+
+    !------------------------------------------------------------------------
+    ! Dry deposition velocity to a hypothetical tiny, grass/shrub-covered, 
+    ! island
+    !------------------------------------------------------------------------
+    diagID  = 'DryDepVelIsland'
+    CALL Init_and_Register(                                                  &
+         Input_Opt      = Input_Opt,                                         &
+         State_Chm      = State_Chm,                                         &
+         State_Diag     = State_Diag,                                        &
+         State_Grid     = State_Grid,                                        &
+         DiagList       = Diag_List,                                         &
+         TaggedDiagList = TaggedDiag_List,                                   &
+         Ptr2Data       = State_Diag%DryDepVelIsland,                                 &
+         archiveData    = State_Diag%Archive_DryDepVelIsland,                         &
+         mapData        = State_Diag%Map_DryDepVelIsland,                             &
+         diagId         = diagId,                                            &
+         diagFlag       = 'D',                                               &
+         RC             = RC                                                )
+
+    IF ( RC /= GC_SUCCESS ) THEN
+       errMsg = TRIM( errMsg_ir ) // TRIM( diagId )
+       CALL GC_Error( errMsg, RC, thisLoc )
+       RETURN
+    ENDIF
+
+
 
     !------------------------------------------------------------------------
     ! Satellite Diagnostic: Total dry deposition flux
@@ -12614,6 +12683,19 @@ CONTAINS
                    RC       = RC                                            )
     IF ( RC /= GC_SUCCESS ) RETURN
 
+    CALL Finalize( diagId   = 'DryDepIsland',                                &
+                   Ptr2Data = State_Diag%DryDepIsland,                       &
+                   mapData  = State_Diag%Map_DryDepIsland,                   &
+                   RC       = RC                                            )
+    IF ( RC /= GC_SUCCESS ) RETURN
+
+    CALL Finalize( diagId   = 'DryDepVelIsland',                             &
+                   Ptr2Data = State_Diag%DryDepVelIsland,                    &
+                   mapData  = State_Diag%Map_DryDepVelIsland,                &
+                   RC       = RC                                            )
+    IF ( RC /= GC_SUCCESS ) RETURN
+
+
     CALL Finalize( diagId   = 'DryDepVel',                                   &
                    Ptr2Data = State_Diag%DryDepVel,                          &
                    mapData  = State_Diag%Map_DryDepVel,                      &
@@ -14621,6 +14703,18 @@ CONTAINS
        IF ( isUnits   ) Units = 'molec cm-2 s-1'
        IF ( isRank    ) Rank  = 2
        IF ( isTagged  ) TagId = 'DRY'
+
+    ELSE IF ( TRIM( Name_AllCaps ) == 'DRYDEPISLAND' ) THEN
+         IF ( isDesc    ) Desc  = 'Dry deposition flux of species, to hypothetical tiny island'
+         IF ( isUnits   ) Units = 'molec cm-2 s-1'
+         IF ( isRank    ) Rank  = 2
+         IF ( isTagged  ) TagId = 'DRY'
+
+    ELSE IF ( TRIM( Name_AllCaps ) == 'DRYDEPVELISLAND' ) THEN
+         IF ( isDesc    ) Desc  = 'Dry deposition velocity of species, to hypothetical tiny island'
+         IF ( isUnits   ) Units = 'cm s-1'
+         IF ( isRank    ) Rank  = 2
+         IF ( isTagged  ) TagId = 'DRY'
 
     ELSE IF ( TRIM( Name_AllCaps ) == 'DRYDEPVEL' ) THEN
        IF ( isDesc    ) Desc  = 'Dry deposition velocity of species'

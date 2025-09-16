@@ -4597,6 +4597,9 @@ CONTAINS
     REAL(fp), TARGET        :: dflx(State_Grid%NX,                           &
                                     State_Grid%NY,                           &
                                     State_Chm%nAdvect                       )
+    REAL(fp), TARGET        :: dflx_is(State_Grid%NX,                           &
+                                    State_Grid%NY,                           &
+                                    State_Chm%nAdvect                       )
 
     ! Pointers and Objects
     REAL(f4),       POINTER :: Ptr2D(:,:) => NULL()
@@ -4614,6 +4617,7 @@ CONTAINS
     ! Initialize
     RC      =  GC_SUCCESS
     dflx    =  0.0_fp
+    dflx_is =  0.0_fp
     eflx    =  0.0_fp
     colEflx =  0.0_fp
     ThisSpc => NULL()
@@ -4627,6 +4631,9 @@ CONTAINS
     ! Reset DryDepMix diagnostic so as not to accumulate from prior timesteps
     IF ( State_Diag%Archive_DryDepMix .or. State_Diag%Archive_DryDep ) THEN
        State_Diag%DryDepMix = 0.0_f4
+    ENDIF
+    IF ( State_Diag%Archive_DryDepIsland ) THEN
+      State_Diag%DryDepIsland = 0.0_f4
     ENDIF
 
     !=======================================================================
@@ -4874,6 +4881,12 @@ CONTAINS
           dflx(I,J,N) = dflx(I,J,N) + State_Chm%DryDepFreq(I,J,ND) &
                         * State_Chm%Species(N)%Conc(I,J,1)      &
                         /  ( AIRMW / ThisSpc%MW_g )
+          ! If the 'island' diagnostic is disabled, DryDepFreqIsland is unused
+          IF ( ASSOCIATED(State_Chm%DryDepFreqIsland) )  THEN
+             dflx_is(I,J,N) = dflx_is(I,J,N) + State_Chm%DryDepFreqIsland(I,J,ND) &
+                           * State_Chm%Species(N)%Conc(I,J,1)      &
+                           /  ( AIRMW / ThisSpc%MW_g )
+          ENDIF
 
           IF ( Input_Opt%ITS_A_MERCURY_SIM .and. ThisSpc%Is_Hg0 ) THEN
 
@@ -4908,6 +4921,8 @@ CONTAINS
        ! beginning of this routine (ckeller, 4/10/15).
        !=====================================================================
        dflx(I,J,:) = dflx(I,J,:) * State_Met%AD(I,J,1)                        &
+                                 / State_Grid%Area_M2(I,J)
+       dflx_is(I,J,:) = dflx_is(I,J,:) * State_Met%AD(I,J,1)                        &
                                  / State_Grid%Area_M2(I,J)
 
        IF ( ASSOCIATED( PNOxLoss_O3 ) .AND. id_O3 > 0 ) THEN
@@ -5049,6 +5064,15 @@ CONTAINS
              ENDIF
           ENDIF
 
+          IF ( State_Diag%Archive_DryDepIsland    ) THEN
+             S = State_Diag%Map_DryDepIsland%id2slot(ND)
+             IF ( S > 0 ) THEN
+                State_Diag%DryDepIsland(:,:,S) = dflx_is(:,:,N)                    &
+                                            * 1.0e-4_fp                      &
+                                            * ( AVO / MW_kg  )
+             ENDIF
+          ENDIF
+
           !-----------------------------------------------------------------
           ! If Soil NOx is turned on, then call SOIL_DRYDEP to
           ! archive dry deposition fluxes for nitrogen species
@@ -5076,6 +5100,19 @@ CONTAINS
        ENDDO
 
     ENDIF
+
+   !### Uncomment for debug output
+   ! WRITE( 6, '(a)' ) 'eflx and dflx values HEMCO [kg/m2/s]'
+   ! DO NA = 1, 1 !State_Chm%nAdvect
+   !    WRITE(6,*) 'eflx TRACER ', NA, ': ', SUM(eflx(:,:,NA))
+   !    WRITE(6,*) 'dflx TRACER ', NA, ': ', SUM(dflx(:,:,NA))
+   !    WRITE(6,*) 'dflx_is TRACER ', NA, ': ', SUM(dflx_is(:,:,NA))
+   !    WRITE(6,*) 'sflx TRACER ', NA, ': ', SUM(State_Chm%SurfaceFlux(:,:,NA))
+   !    WRITE(6,*) 'drydepfreq', NA, ': ', SUM(State_Chm%DryDepFreq(:,:,ND))/(State_Grid%NX * State_Grid%NY)
+   !    WRITE(6,*) 'drydepfreq_is', NA, ': ', SUM(State_Chm%DryDepFreqIsland(:,:,ND))/(State_Grid%NX * State_Grid%NY)
+   !    WRITE(6,*) 'drydepvel_is', NA, ': ', SUM(State_Chm%DryDepVelIsland(:,:,ND))/(State_Grid%NX * State_Grid%NY)
+   !
+   ! ENDDO
 
     !=======================================================================
     ! Unit conversion #2: Convert back to the original units
@@ -5345,6 +5382,19 @@ CONTAINS
                 State_Diag%DryDepVelForALT1(I,J,A) = dvel(I,J,N)
              ENDIF
           ENDIF
+
+          ! Dry deposition velocity - island diagnostic [cm/s]
+          ! Note: putting this here is simple to code, but means
+          ! that the DryDepVelIsland diagnostic needs the 'normal'
+          ! dry deposition output to be turned on too.
+          IF ( State_Diag%Archive_DryDepVelIsland ) THEN
+             S = State_Diag%Map_DryDepVelIsland%id2slot(ND)
+             IF ( S > 0 ) THEN
+                State_Diag%DryDepVelIsland(I,J,S) = &
+                  State_Chm%DryDepVelIsland(I,J,ND) * 100.0_fp
+             ENDIF
+          ENDIF
+
        ENDDO
        ENDDO
        ENDDO

@@ -303,6 +303,17 @@ CONTAINS
     REAL(f8) :: AZO   (State_Grid%NX,State_Grid%NY) ! Z0, per (I,J) square
     REAL(f8) :: SUNCOS_MID(State_Grid%NX,State_Grid%NY) ! COS(SZA) @ midt of
                                                         ! current chem timestep
+    ! Temp variables for subgrid-scale island dry deposition diagnostic
+    REAL(f8), allocatable :: BkupDryDepVel(:,:,:)
+    REAL(f8), allocatable :: BkupDryDepFreq(:,:,:)
+    INTEGER, allocatable :: BkupIREG(:,:)
+    INTEGER, allocatable :: BkupILAND(:,:,:)
+    INTEGER, allocatable :: BkupIUSE(:,:,:)
+    REAL(f8), allocatable :: BkupXLAI(:,:,:)
+    LOGICAL, allocatable :: BkupIsSnow(:,:)
+    LOGICAL, allocatable :: BkupIsLand(:,:)
+    LOGICAL, allocatable :: BkupIsIce(:,:)
+
     !=================================================================
     ! DO_DRYDEP begins here!
     !=================================================================
@@ -351,6 +362,84 @@ CONTAINS
        RETURN
     ENDIF
 #endif
+
+if ( State_Diag%Archive_DryDepIsland ) THEN
+    ! Dry deposition to subgrid scale sub-Antarctic islands
+    ! Approach:
+    ! (1) Save current state to temporary space
+    ! (2) Set params for sub-Antarctic island
+    ! (3) Re-run DEPVEL and UPDATE_DRYDEPFREQ with these params
+    ! (4) Extract results
+    ! (5) Restore normal model parameters
+    ! save current state
+    ALLOCATE(BkupDryDepVel, source=State_Chm%DryDepVel)
+    ALLOCATE(BkupDryDepFreq, source=State_Chm%DryDepFreq)
+    ALLOCATE(BkupIREG, source=State_Met%IREG)
+    ALLOCATE(BkupILAND, source=State_Met%ILAND)
+    ALLOCATE(BkupIUSE, source=State_Met%IUSE)
+    ALLOCATE(BkupXLAI, source=State_Met%XLAI)
+    ALLOCATE(BkupIsSnow, source=State_Met%IsSnow)
+    ALLOCATE(BkupIsLand, source=State_Met%IsLand)
+    ALLOCATE(BkupIsIce, source=State_Met%IsIce)
+
+    ! set params for sub-Antarctic sub-grid-scale island across the entire globe
+    ! one land type in grid square
+    State_Met%IREG = 1
+    ! Olson land type 42 - cold grassland
+    State_Met%ILAND = -1
+    State_Met%ILAND(:,:,1) = 42
+    ! Entire square (1000 permille) is covered by this land use type
+    State_Met%IUSE = 0
+    State_Met%IUSE(:,:,1) = 1000
+    ! Leaf area index, 1 cm/cm
+    State_Met%XLAI(:,:,1) = 1.0
+    ! Logical flags (note: Ice includes sea ice)
+    State_Met%IsSnow = .false.
+    State_Met%IsIce = .false.
+    State_Met%IsLand = .true.
+
+    ! Re-compute dry dep with modified parameters
+    CALL DEPVEL( Input_Opt, State_Chm,  State_Diag, State_Grid, &
+                 State_Met, RADIAT,     TC0,        SUNCOS_MID, &
+                 F0,        HSTAR,      XMW,        AEROSOL,    &
+                 USTAR,     CZ1,        OBK,        CFRAC,      &
+                 ZH,        AZO,        RHB,        PRESSU,     &
+                 W10,        RC                                )
+    IF ( RC /= GC_SUCCESS ) THEN
+       ErrMsg = 'Error encountered in second call to "DEPVEL!'
+       CALL GC_Error( ErrMsg, RC, ThisLoc )
+       RETURN
+    ENDIF
+
+    CALL UPDATE_DRYDEPFREQ( Input_Opt,  State_Chm, State_Diag,               &
+                 State_Grid, State_Met, RC                       )
+
+    ! Trap potential errors
+    IF ( RC /= GC_SUCCESS ) THEN
+       ErrMsg = 'Error encountered in second call to "UPDATE_DRYDEPFREQ!'
+       CALL GC_Error( ErrMsg, RC, ThisLoc )
+       RETURN
+    ENDIF
+
+    ! extract results
+    State_Chm%DryDepFreqIsland = State_Chm%DryDepFreq
+    State_Chm%DryDepVelIsland = State_Chm%DryDepVel
+
+    ! restore normal model state
+    State_Chm%DryDepVel = BkupDryDepVel
+    State_Chm%DryDepFreq = BkupDryDepFreq
+    State_Met%IREG = BkupIREG
+    State_Met%ILAND = BkupILAND
+    State_Met%IUSE = BkupIUSE
+    State_Met%XLAI = BkupXLAI
+    State_Met%IsSnow = BkupIsSnow
+    State_Met%IsLand = BkupIsLand
+    State_Met%IsIce = BkupIsIce
+    ! Note: Bkup... arrays are deallocated automatically at end of scope.
+
+    ! End of dry deposition to sub-grid scale island
+   ENDIF
+
 
     !### Debug
     IF ( Input_Opt%Verbose ) THEN
