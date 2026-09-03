@@ -2532,6 +2532,31 @@ CONTAINS
 !
     INTEGER  :: I,         J
     REAL(fp) :: LOSS_FREQ, S, SFCWINDSQR, U10M
+#ifdef PERTURB_WIND_ENV_VAR
+   ! Wind perturbation with the size of the perturbation set at runtime by an environment variable
+   ! This block of code would be better defined in a function, but it is only used in three places
+   ! so it has been copied/pasted into place to avoid messing with the architecture of GEOS-Chem
+   ! The perturbation amount is initialised once and the value cached, just in case the environment
+   ! variable access is slow (compared with the other jobs the model is doing)
+   real(fp), save :: wind_speed_perturbation = 0.0
+   logical, save :: initialized = .false.
+   character(len=128) :: env_var_contents
+   integer :: stat
+
+   if (.not. initialized) then
+      call get_environment_variable( &
+            "GC_EXPERIMENT_WIND_PERTURB", env_var_contents, status=stat)
+      if (stat == 0) then
+         read(env_var_contents, *, iostat=stat) wind_speed_perturbation
+         if (stat /= 0) then
+            error stop "Invalid GC_EXPERIMENT_WIND_PERTURB environment variable"
+         end if
+      else
+         error stop "GC_EXPERIMENT_WIND_PERTURB environment variable is not set."
+      end if
+      initialized = .true.
+   end if
+#endif
 
     !========================================================================
     ! Hg2_SeaSalt_LossRate begins here!
@@ -2566,6 +2591,9 @@ CONTAINS
 #endif
 #ifdef PERTURB_LESS_WIND
                       U10M = U10M * 0.75
+#endif
+#ifdef PERTURB_WIND_ENV_VAR
+                      U10M = U10M * wind_speed_perturbation
 #endif
           ENDIF
           U10M       = MAX( MIN( U10M, 20.0_fp ), 1.0_fp )
@@ -3345,6 +3373,31 @@ CONTAINS
     ! Characters
     CHARACTER(LEN=255)      :: thisLoc
     CHARACTER(LEN=512)      :: errMsg
+#ifdef PERTURB_WIND_ENV_VAR
+   ! Wind perturbation with the size of the perturbation set at runtime by an environment variable
+   ! This block of code would be better defined in a function, but it is only used in three places
+   ! so it has been copied/pasted into place to avoid messing with the architecture of GEOS-Chem
+   ! The perturbation amount is initialised once and the value cached, just in case the environment
+   ! variable access is slow (compared with the other jobs the model is doing)
+   real(fp), save :: wind_speed_perturbation = 0.0
+   logical, save :: initialized = .false.
+   character(len=128) :: env_var_contents
+   integer :: stat
+
+   if (.not. initialized) then
+      call get_environment_variable( &
+            "GC_EXPERIMENT_WIND_PERTURB", env_var_contents, status=stat)
+      if (stat == 0) then
+         read(env_var_contents, *, iostat=stat) wind_speed_perturbation
+         if (stat /= 0) then
+            error stop "Invalid GC_EXPERIMENT_WIND_PERTURB environment variable"
+         end if
+      else
+         error stop "GC_EXPERIMENT_WIND_PERTURB environment variable is not set."
+      end if
+      initialized = .true.
+   end if
+#endif
 
     !=================================================================
     ! OFFLINEOCEAN_READMO begins here!
@@ -3481,6 +3534,9 @@ CONTAINS
 #endif
 #ifdef PERTURB_LESS_WIND
             Usq = Usq * 0.75**2
+#endif
+#ifdef PERTURB_WIND_ENV_VAR
+            Usq = Usq * wind_speed_perturbation**2
 #endif
           ENDIF
 
